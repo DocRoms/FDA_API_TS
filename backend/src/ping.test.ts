@@ -2,18 +2,24 @@ import { describe, it, expect } from 'vitest';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 
-import '../src/index';
+const buildTestServer = () => {
+  const app = Fastify();
+
+  app.register(cors, {
+    origin: ['http://localhost:5173'],
+  });
+
+  app.get('/ping', async () => {
+    return { message: 'pong' };
+  });
+
+  return app;
+};
 
 describe('GET /ping', () => {
-  it('should return pong', async () => {
-    const app = Fastify();
-    await app.register(cors, {
-      origin: ['http://localhost:5173'],
-    });
-    app.get('/ping', async () => {
-      return { message: 'pong' };
-    });
+  const app = buildTestServer();
 
+  it('returns pong', async () => {
     const response = await app.inject({
       method: 'GET',
       url: '/ping',
@@ -24,4 +30,3 @@ describe('GET /ping', () => {
     expect(body.message).toBe('pong');
   });
 });
-

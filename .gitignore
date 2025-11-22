@@ -6,4 +6,6 @@ npm-debug.log*
 dist
 .vscode
 .idea
-
+coverage
+backend/coverage
+frontend/coverage

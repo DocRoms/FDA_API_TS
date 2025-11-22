@@ -1,19 +1,19 @@
 DC := docker compose
 
-.PHONY: install watch up down build logs backend-shell frontend-shell lint test coverage audit-force
+.PHONY: install start up stop build logs backend-shell frontend-shell lint test coverage audit-force
 
 install:
 	$(DC) build
 	$(DC) run --rm backend npm install
 	$(DC) run --rm frontend npm install
 
-watch:
+start:
 	$(DC) up backend frontend
 
 up:
 	$(DC) up --build
 
-down:
+stop:
 	$(DC) down
 
 build:

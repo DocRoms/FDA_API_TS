@@ -19,7 +19,7 @@ Pour faire tourner le projet, il suffit d’avoir :
 
 > Aucun besoin d’installer Node, npm… Tout est encapsulé dans les conteneurs Docker.
 
-Le projet est structuré comme suit :
+Le projet est structuré ainsi :
 
 - `backend/` : API Fastify (TypeScript)
 - `frontend/` : SPA Vue 3 (Vite + TypeScript)
@@ -54,10 +54,10 @@ Tout se fait dans Docker, **sans utiliser npm en local**.
 
 ---
 
-### 2.2. Lancement du développement – `make watch`
+### 2.2. Lancement des envs de devs (front et back) – `make start`
 
 ```bash
-make watch
+make start
 ```
 
 Cette commande :
@@ -80,7 +80,7 @@ Une fois la commande lancée :
 Pour arrêter les services :
 
 ```bash
-make down
+make stop
 ```
 
 ---
@@ -125,6 +125,3 @@ Les tests ne nécessitent ni Node ni Vitest installés en local.
   - Proxy `/api` → backend (via nom de service Docker `backend`)
   - Lint : ESLint + `eslint-plugin-vue` + config Vue/TS/Prettier
   - Tests : Vitest (environment jsdom, coverage v8)
-
-Ce scaffold sert de base pour la suite du test technique : intégration de l’API FDA, pagination, filtres et page détail.
-
