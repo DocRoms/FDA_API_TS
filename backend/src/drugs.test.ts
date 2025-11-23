@@ -27,6 +27,25 @@ const buildTestServer = () => {
     };
   });
 
+  app.get('/drugs/:applicationNumber', async (request) => {
+    const { applicationNumber } = request.params as { applicationNumber: string };
+    if (applicationNumber !== 'APP-001') {
+      return { message: 'Drug not found' };
+    }
+    return {
+      applicationNumber: 'APP-001',
+      sponsorName: 'TEST LAB',
+      products: [
+        {
+          brandName: 'TEST DRUG',
+          genericName: 'GENERIC',
+          route: 'ORAL',
+          substances: ['SUB-A', 'SUB-B'],
+        },
+      ],
+    };
+  });
+
   return app;
 };
 
@@ -65,3 +84,29 @@ describe('GET /drugs', () => {
   });
 });
 
+describe('GET /drugs/:applicationNumber', () => {
+  const app = buildTestServer();
+
+  beforeAll(async () => {
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('returns a detailed view for a known application number', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/drugs/APP-001',
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body);
+
+    expect(body.applicationNumber).toBe('APP-001');
+    expect(body.sponsorName).toBe('TEST LAB');
+    expect(Array.isArray(body.products)).toBe(true);
+    expect(body.products[0].brandName).toBe('TEST DRUG');
+  });
+});

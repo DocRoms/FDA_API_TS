@@ -57,7 +57,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="drug in sortedDrugs" :key="drug.id">
+                <tr v-for="drug in sortedDrugs" :key="drug.id" @click="selectDrug(drug)" class="table-row--clickable">
                   <td>{{ drug.productName || '—' }}</td>
                   <td>{{ drug.substanceName || '—' }}</td>
                   <td>{{ drug.sponsorName || '—' }}</td>
@@ -94,20 +94,84 @@
 
       <aside class="panel panel--side">
         <header class="panel__header">
-          <h2>Diagnostic /ping</h2>
-          <p class="panel__hint">
-            Endpoint de test pour vérifier la santé du backend.
-          </p>
+          <h2>Détail du médicament</h2>
         </header>
         <section class="panel__body">
-          <button @click="fetchPing" :disabled="loadingPing">
-            Appeler /ping
-          </button>
-          <p v-if="loadingPing">Chargement...</p>
-          <pre v-if="pingError" class="error">{{ pingError }}</pre>
-          <pre v-if="pingResponse && !pingError" class="response">{{ pingResponse }}</pre>
+          <section v-if="selectedDrugDetail" class="detail-block">
+            <p class="panel__hint">
+              Informations issues de l'API FDA pour l'application {{ selectedDrugDetail.applicationNumber }}.
+            </p>
+            <p><strong>Laboratoire :</strong> {{ selectedDrugDetail.sponsorName || '—' }}</p>
+            <div
+              v-for="(product, index) in selectedDrugDetail.products"
+              :key="index"
+              class="detail-product"
+            >
+              <h3>
+                {{ product.brandName || 'Produit' }}
+                <span v-if="product.strength">
+                  · {{ product.strength }}
+                </span>
+              </h3>
+              <p><strong>Nom générique :</strong> {{ product.genericName || '—' }}</p>
+              <p><strong>Voie d'admission :</strong> {{ product.route || '—' }}</p>
+              <p><strong>Forme pharmaceutique :</strong> {{ product.dosageForm || '—' }}</p>
+              <p><strong>Statut marketing :</strong> {{ product.marketingStatus || '—' }}</p>
+              <p><strong>Numéro de produit :</strong> {{ product.productNumber || '—' }}</p>
+              <p><strong>Code TE :</strong> {{ product.teCode || '—' }}</p>
+              <p>
+                <strong>Substances actives :</strong>
+                {{ product.substances.length ? product.substances.join(', ') : '—' }}
+              </p>
+            </div>
+
+            <div v-if="selectedDrugDetail.documents && selectedDrugDetail.documents.length" class="detail-docs">
+              <h3>Documents FDA</h3>
+              <ul class="detail-docs__list">
+                <li v-for="(doc, index) in selectedDrugDetail.documents" :key="index">
+                  <template v-if="doc.url">
+                    <a
+                      :href="doc.url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {{ doc.type || 'Document FDA' }}
+                    </a>
+                  </template>
+                  <template v-else>
+                    <span>{{ doc.type || 'Document FDA' }}</span>
+                  </template>
+                  <span v-if="doc.effectiveDate" class="detail-docs__date">
+                    — {{ new Date(doc.effectiveDate).toLocaleDateString('fr-FR') }}
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </section>
+          <section v-else class="detail-empty">
+            <p class="panel__hint">
+              Sélectionnez un médicament dans la liste pour afficher son détail.
+            </p>
+          </section>
         </section>
       </aside>
+    </section>
+
+    <section class="panel panel--ping">
+      <header class="panel__header">
+        <h2>Diagnostic /ping</h2>
+        <p class="panel__hint">
+          Endpoint de test pour vérifier la santé du backend.
+        </p>
+      </header>
+      <section class="panel__body">
+        <button @click="fetchPing" :disabled="loadingPing">
+          Appeler /ping
+        </button>
+        <p v-if="loadingPing">Chargement...</p>
+        <pre v-if="pingError" class="error">{{ pingError }}</pre>
+        <pre v-if="pingResponse && !pingError" class="response">{{ pingResponse }}</pre>
+      </section>
     </section>
   </main>
 </template>
@@ -124,6 +188,31 @@ interface DrugItem {
   route: string | null;
 }
 
+interface DrugDetailProduct {
+  brandName: string | null;
+  genericName: string | null;
+  route: string | null;
+  dosageForm: string | null;
+  marketingStatus: string | null;
+  productNumber: string | null;
+  teCode: string | null;
+  strength: string | null;
+  substances: string[];
+}
+
+interface DrugDocument {
+  type: string | null;
+  url: string | null;
+  effectiveDate: string | null;
+}
+
+interface DrugDetail {
+  applicationNumber: string;
+  sponsorName: string | null;
+  products: DrugDetailProduct[];
+  documents: DrugDocument[];
+}
+
 type SortKey = 'productName' | 'substanceName' | 'sponsorName' | 'applicationNumber' | 'route';
 
 const drugs = ref<DrugItem[]>([]);
@@ -138,6 +227,11 @@ const searchInput = ref<string>('');
 const pingResponse = ref<string | null>(null);
 const pingError = ref<string | null>(null);
 const loadingPing = ref(false);
+
+const selectedDrug = ref<DrugItem | null>(null);
+const selectedDrugDetail = ref<DrugDetail | null>(null);
+const loadingDetail = ref(false);
+const detailError = ref<string | null>(null);
 
 // Tri par défaut : nom de marque ascendant
 const sortKey = ref<SortKey | null>('productName');
@@ -231,6 +325,33 @@ async function fetchPing() {
   } finally {
     loadingPing.value = false;
   }
+}
+
+async function fetchDrugDetail(applicationNumber: string) {
+  loadingDetail.value = true;
+  detailError.value = null;
+  selectedDrugDetail.value = null;
+
+  try {
+    const res = await fetch(`/api/drugs/${encodeURIComponent(applicationNumber)}`);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const data = (await res.json()) as DrugDetail;
+    selectedDrugDetail.value = data;
+  } catch (err: any) {
+    detailError.value = err?.message ?? String(err);
+  } finally {
+    loadingDetail.value = false;
+  }
+}
+
+function selectDrug(drug: DrugItem) {
+  if (!drug.applicationNumber) {
+    return;
+  }
+  selectedDrug.value = drug;
+  fetchDrugDetail(drug.applicationNumber);
 }
 
 onMounted(() => {
@@ -358,6 +479,54 @@ pre {
 
 .error {
   background: #7f1d1d;
+}
+
+.panel--ping {
+  margin-top: 1.5rem;
+}
+
+.detail-block {
+  margin-bottom: 0;
+}
+
+.detail-empty {
+  font-size: 0.9rem;
+  color: #6b7280;
+}
+
+.table-row--clickable {
+  cursor: pointer;
+}
+
+.detail-product {
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.detail-docs {
+  margin-top: 1rem;
+}
+
+.detail-docs__list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+}
+
+.detail-docs__list li {
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+.detail-docs__list a {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.detail-docs__date {
+  color: #6b7280;
+  margin-left: 0.25rem;
 }
 
 @media (max-width: 900px) {

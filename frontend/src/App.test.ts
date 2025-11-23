@@ -395,3 +395,261 @@ describe('App.vue - tri interne', () => {
     expect(sorted).toBe(vm.drugs);
   });
 });
+
+describe('App.vue - détail médicament', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('charge et affiche le détail lorsqu’on clique sur un médicament', async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url.startsWith('/api/drugs?')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            page: 1,
+            pageSize: 10,
+            total: 1,
+            items: [
+              {
+                id: 'APP-001',
+                applicationNumber: 'APP-001',
+                sponsorName: 'TEST LAB',
+                productName: 'TEST DRUG',
+                substanceName: 'TEST SUBSTANCE',
+                route: 'ORAL',
+              },
+            ],
+          }),
+        }) as any;
+      }
+      if (url.startsWith('/api/drugs/APP-001')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            applicationNumber: 'APP-001',
+            sponsorName: 'TEST LAB',
+            products: [
+              {
+                brandName: 'TEST DRUG',
+                genericName: 'GENERIC',
+                route: 'ORAL',
+                dosageForm: 'TABLET',
+                marketingStatus: 'APPROVED',
+                productNumber: '001',
+                teCode: 'AB',
+                strength: '10MG',
+                substances: ['SUB-A', 'SUB-B'],
+              },
+            ],
+            documents: [
+              {
+                type: 'APPROVAL LETTER',
+                url: 'https://example.com/doc.pdf',
+                effectiveDate: '2010-01-01',
+              },
+            ],
+          }),
+        }) as any;
+      }
+      if (url.startsWith('/api/ping')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ message: 'pong' }),
+        }) as any;
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${url}`));
+    }) as any;
+
+    const wrapper = mount(App);
+    await nextTickAll();
+
+    const row = wrapper.find('tbody tr');
+    expect(row.exists()).toBe(true);
+    await row.trigger('click');
+    await nextTickAll();
+
+    expect(wrapper.text()).toContain('Détail du médicament');
+    expect(wrapper.text()).toContain('APP-001');
+    expect(wrapper.text()).toContain('TEST LAB');
+    expect(wrapper.text()).toContain('TEST DRUG');
+    expect(wrapper.text()).toContain('GENERIC');
+    expect(wrapper.text()).toContain('ORAL');
+    expect(wrapper.text()).toContain('TABLET');
+    expect(wrapper.text()).toContain('APPROVED');
+    expect(wrapper.text()).toContain('001');
+    expect(wrapper.text()).toContain('AB');
+    expect(wrapper.text()).toContain('APPROVAL LETTER');
+    expect(wrapper.text()).toContain('10MG');
+    // date formatée fr-FR -> 01/01/2010
+    expect(wrapper.text()).toMatch(/01\/01\/2010/);
+  });
+});
+
+describe('App.vue - affichage des fallback "—"', () => {
+  it('affiche des tirets pour les valeurs nulles dans la liste', async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url.startsWith('/api/drugs')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            page: 1,
+            pageSize: 10,
+            total: 1,
+            items: [
+              {
+                id: 'APP-NULLS',
+                applicationNumber: null,
+                sponsorName: null,
+                productName: null,
+                substanceName: null,
+                route: null,
+              },
+            ],
+          }),
+        }) as any;
+      }
+      if (url.startsWith('/api/ping')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ message: 'pong' }),
+        }) as any;
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${url}`));
+    }) as any;
+
+    const wrapper = mount(App);
+    await nextTickAll();
+
+    const row = wrapper.find('tbody tr');
+    expect(row.exists()).toBe(true);
+    const cells = row.findAll('td');
+    // toutes les colonnes devraient afficher "—"
+    cells.forEach((cell) => {
+      expect(cell.text()).toBe('—');
+    });
+  });
+});
+
+describe('App.vue - comportement de setSort', () => {
+  it('bascule la direction du tri quand la même colonne est cliquée deux fois', async () => {
+    const wrapper = mount(App);
+    await nextTickAll();
+
+    const vm: any = wrapper.vm;
+    expect(vm.sortKey).toBe('productName');
+    expect(vm.sortDirection).toBe('asc');
+
+    vm.setSort('productName');
+    expect(vm.sortDirection).toBe('desc');
+
+    vm.setSort('productName');
+    expect(vm.sortDirection).toBe('asc');
+  });
+
+  it('change la colonne de tri et réinitialise en asc', async () => {
+    const wrapper = mount(App);
+    await nextTickAll();
+
+    const vm: any = wrapper.vm;
+    vm.setSort('sponsorName');
+    expect(vm.sortKey).toBe('sponsorName');
+    expect(vm.sortDirection).toBe('asc');
+  });
+});
+
+describe('App.vue - état de détail vide et erreur de détail', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('affiche le hint de détail vide quand aucun médicament n’est sélectionné', async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url.startsWith('/api/drugs')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ page: 1, pageSize: 10, total: 0, items: [] }),
+        }) as any;
+      }
+      if (url.startsWith('/api/ping')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ message: 'pong' }),
+        }) as any;
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${url}`));
+    }) as any;
+
+    const wrapper = mount(App);
+    await nextTickAll();
+
+    expect(wrapper.text()).toContain('Sélectionnez un médicament dans la liste pour afficher son détail.');
+  });
+
+  it('gère une erreur lors du chargement du détail médicament', async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url.startsWith('/api/drugs?')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            page: 1,
+            pageSize: 10,
+            total: 1,
+            items: [
+              {
+                id: 'APP-ERR',
+                applicationNumber: 'APP-ERR',
+                sponsorName: 'ERR LAB',
+                productName: 'ERR DRUG',
+                substanceName: 'ERR SUB',
+                route: 'ORAL',
+              },
+            ],
+          }),
+        }) as any;
+      }
+      if (url.startsWith('/api/drugs/APP-ERR')) {
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          json: async () => ({}),
+        }) as any;
+      }
+      if (url.startsWith('/api/ping')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ message: 'pong' }),
+        }) as any;
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${url}`));
+    }) as any;
+
+    const wrapper = mount(App);
+    await nextTickAll();
+
+    const row = wrapper.find('tbody tr');
+    await row.trigger('click');
+    await nextTickAll();
+
+    // detailError n’est pas directement rendu dans le template, mais on peut au moins s’assurer
+    // que le clic ne casse pas le composant et que le texte principal reste affiché.
+    expect(wrapper.text()).toContain('ERR LAB');
+  });
+});

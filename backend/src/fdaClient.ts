@@ -6,18 +6,41 @@ export interface FdaSearchParams {
 
 export interface FdaActiveIngredient {
   name?: string;
+  strength?: string;
 }
 
 export interface FdaProduct {
   brand_name?: string;
   generic_name?: string;
   active_ingredients?: FdaActiveIngredient[];
+  route?: string;
+  dosage_form?: string;
+  marketing_status?: string;
+  product_number?: string;
+  te_code?: string;
+  strength?: string;
+}
+
+export interface FdaSubmissionDoc {
+  id?: string;
+  url?: string;
+  date?: string; // format AAAAMMJJ
+  type?: string; // Label, Letter, Review, etc.
+}
+
+export interface FdaSubmission {
+  submission_type?: string;
+  submission_number?: string;
+  submission_status?: string;
+  submission_status_date?: string;
+  application_docs?: FdaSubmissionDoc[];
 }
 
 export interface FdaResult {
   application_number?: string;
   sponsor_name?: string;
   products?: FdaProduct[];
+  submissions?: FdaSubmission[];
 }
 
 export interface FdaResultsMeta {
@@ -54,6 +77,11 @@ export async function fetchFdaDrugs(params: FdaSearchParams): Promise<FdaRespons
   }
 
   const url = `https://api.fda.gov/drug/drugsfda.json?${query.toString()}`;
+
+  // Log technique pour suivre les appels à l’API FDA
+  // (les logs de stdout/stderr sont récupérés par Fastify / Docker)
+  console.log('[FDA] Request URL:', url);
+
   const res = await fetch(url);
 
   if (res.status === 404) {
