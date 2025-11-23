@@ -44,6 +44,9 @@ async function buildServer() {
       search?: string;
     };
 
+    // Cache côté client et proxy pendant 3 heures pour la liste
+    reply.header('Cache-Control', 'public, max-age=10800, s-maxage=10800');
+
     const pageNum = Math.max(1, Number(page) || 1);
     const sizeNum = Math.min(100, Math.max(1, Number(pageSize) || 10));
 
@@ -94,6 +97,9 @@ async function buildServer() {
       reply.code(400);
       return { message: 'applicationNumber is required' };
     }
+
+    // Cache côté client et proxy pendant 24 heures pour le détail
+    reply.header('Cache-Control', 'public, max-age=86400, s-maxage=86400');
 
     try {
       const data = await fetchFdaDrugs({
