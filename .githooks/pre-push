@@ -9,4 +9,3 @@ fi
 
 echo "[pre-push] Couverture OK, push autorisé."
 exit 0
-
