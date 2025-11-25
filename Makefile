@@ -1,6 +1,6 @@
 DC := docker compose
 
-.PHONY: install start up stop build logs backend-shell frontend-shell lint test coverage audit-force
+.PHONY: install start up stop build logs backend-shell frontend-shell lint test coverage audit-force lint-fix
 
 install:
 	$(DC) build
@@ -31,6 +31,10 @@ frontend-shell:
 lint:
 	$(DC) run --rm backend npm run lint
 	$(DC) run --rm frontend npm run lint
+
+lint-fix:
+	$(DC) run --rm backend npm run lint -- --fix
+	$(DC) run --rm frontend npm run lint -- --fix
 
 test:
 	$(DC) run --rm backend npm run test

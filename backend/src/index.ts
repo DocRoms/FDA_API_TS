@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import { fetchFdaDrugs, type FdaResult, type FdaActiveIngredient, type FdaSubmission, type FdaSubmissionDoc } from './fdaClient.js';
+import { fetchFdaDrugs, type FdaResult, type FdaActiveIngredient, type FdaSubmissionDoc } from './fdaClient.js';
 
 const server = Fastify({
   logger: true,

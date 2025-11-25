@@ -57,7 +57,12 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="drug in sortedDrugs" :key="drug.id" @click="selectDrug(drug)" class="table-row--clickable">
+                <tr
+                  v-for="drug in sortedDrugs"
+                  :key="drug.id"
+                  class="table-row--clickable"
+                  @click="selectDrug(drug)"
+                >
                   <td>{{ drug.productName || '—' }}</td>
                   <td>{{ drug.substanceName || '—' }}</td>
                   <td>{{ drug.sponsorName || '—' }}</td>
@@ -71,7 +76,7 @@
           </template>
         </section>
 
-        <footer class="panel__footer" v-if="total > 0">
+        <footer v-if="total > 0" class="panel__footer">
           <div class="pagination">
             <button
               type="button"
@@ -165,7 +170,7 @@
         </p>
       </header>
       <section class="panel__body">
-        <button @click="fetchPing" :disabled="loadingPing">
+        <button :disabled="loadingPing" @click="fetchPing">
           Appeler /ping
         </button>
         <p v-if="loadingPing">Chargement...</p>
@@ -268,6 +273,16 @@ function sortIndicator(key: SortKey): string {
   return sortDirection.value === 'asc' ? '▲' : '▼';
 }
 
+function formatErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
+
 async function fetchDrugs() {
   loadingDrugs.value = true;
   drugsError.value = null;
@@ -290,8 +305,8 @@ async function fetchDrugs() {
     total.value = data.total ?? 0;
     page.value = data.page ?? page.value;
     pageSize.value = data.pageSize ?? pageSize.value;
-  } catch (err: any) {
-    drugsError.value = err?.message ?? String(err);
+  } catch (err: unknown) {
+    drugsError.value = formatErrorMessage(err);
   } finally {
     loadingDrugs.value = false;
   }
@@ -320,8 +335,8 @@ async function fetchPing() {
     }
     const data = await res.json();
     pingResponse.value = JSON.stringify(data, null, 2);
-  } catch (err: any) {
-    pingError.value = err?.message ?? String(err);
+  } catch (err: unknown) {
+    pingError.value = formatErrorMessage(err);
   } finally {
     loadingPing.value = false;
   }
@@ -339,8 +354,8 @@ async function fetchDrugDetail(applicationNumber: string) {
     }
     const data = (await res.json()) as DrugDetail;
     selectedDrugDetail.value = data;
-  } catch (err: any) {
-    detailError.value = err?.message ?? String(err);
+  } catch (err: unknown) {
+    detailError.value = formatErrorMessage(err);
   } finally {
     loadingDetail.value = false;
   }

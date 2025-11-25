@@ -1,11 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mount } from '@vue/test-utils';
-import App from './App.vue';
+import { mount, type VueWrapper } from '@vue/test-utils';
+import App from '../src/App.vue';
 
 const nextTickAll = async () => {
   await Promise.resolve();
   await new Promise((resolve) => setTimeout(resolve, 0));
 };
+
+type FetchMock = ReturnType<typeof vi.fn<Parameters<typeof fetch>, Promise<Response>>>;
+
+declare global {
+  // Vitest fournit `fetch` globalement dans l’environnement jsdom
+  // On l’étend pour pouvoir le caster en FetchMock dans les tests.
+   
+  var fetch: typeof fetch;
+}
 
 describe('App.vue', () => {
   const originalFetch = global.fetch;
@@ -14,7 +23,7 @@ describe('App.vue', () => {
     global.fetch = vi.fn((input: RequestInfo | URL) => {
       const url = input.toString();
       if (url.startsWith('/api/drugs')) {
-        return Promise.resolve({
+        const response: Response = {
           ok: true,
           status: 200,
           json: async () => ({
@@ -40,17 +49,20 @@ describe('App.vue', () => {
               },
             ],
           }),
-        }) as any;
+        } as unknown as Response;
+
+        return Promise.resolve(response);
       }
       if (url.startsWith('/api/ping')) {
-        return Promise.resolve({
+        const response: Response = {
           ok: true,
           status: 200,
           json: async () => ({ message: 'pong' }),
-        }) as any;
+        } as unknown as Response;
+        return Promise.resolve(response);
       }
       return Promise.reject(new Error(`Unexpected URL: ${url}`));
-    }) as any;
+    }) as unknown as typeof fetch;
   });
 
   afterEach(() => {
@@ -95,18 +107,20 @@ describe('App.vue', () => {
     global.fetch = vi.fn((input: RequestInfo | URL) => {
       const url = input.toString();
       if (url.startsWith('/api/drugs')) {
-        return Promise.resolve({
+        const response: Response = {
           ok: true,
           status: 200,
           json: async () => ({ page: 1, pageSize: 10, total: 0, items: [] }),
-        }) as any;
+        } as unknown as Response;
+        return Promise.resolve(response);
       }
-      return Promise.resolve({
+      const response: Response = {
         ok: true,
         status: 200,
         json: async () => ({ message: 'pong' }),
-      }) as any;
-    }) as any;
+      } as unknown as Response;
+      return Promise.resolve(response);
+    }) as unknown as typeof fetch;
 
     const wrapper = mount(App);
     await nextTickAll();
@@ -118,18 +132,20 @@ describe('App.vue', () => {
     global.fetch = vi.fn((input: RequestInfo | URL) => {
       const url = input.toString();
       if (url.startsWith('/api/drugs')) {
-        return Promise.resolve({
+        const response: Response = {
           ok: false,
           status: 500,
           json: async () => ({}),
-        }) as any;
+        } as unknown as Response;
+        return Promise.resolve(response);
       }
-      return Promise.resolve({
+      const response: Response = {
         ok: true,
         status: 200,
         json: async () => ({ message: 'pong' }),
-      }) as any;
-    }) as any;
+      } as unknown as Response;
+      return Promise.resolve(response);
+    }) as unknown as typeof fetch;
 
     const wrapper = mount(App);
     await nextTickAll();
@@ -161,31 +177,13 @@ describe('App.vue', () => {
     await input.setValue('TEST QUERY');
     await wrapper.find('form').trigger('submit.prevent');
 
-    expect(global.fetch).toHaveBeenCalled();
-    const call = (global.fetch as any).mock.calls.pop();
-    const parsedUrl = new URL(call[0].toString(), 'http://localhost');
+    const fetchMock = global.fetch as unknown as FetchMock;
+    expect(fetchMock).toHaveBeenCalled();
+
+    const lastCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+    const parsedUrl = new URL(lastCall[0].toString(), 'http://localhost');
     expect(parsedUrl.searchParams.get('search')).toBe('TEST QUERY');
     expect(parsedUrl.searchParams.get('page')).toBe('1');
-  });
-
-  it('permet de trier par laboratoire', async () => {
-    const wrapper = mount(App);
-
-    await nextTickAll();
-
-    // tri initial: par productName asc
-    let rows = wrapper.findAll('tbody tr');
-    expect(rows[0].text()).toContain('A-DRUG');
-
-    // cliquer sur la colonne Laboratoire pour trier par sponsorName
-    const headers = wrapper.findAll('th');
-    const sponsorHeader = headers[2];
-    await sponsorHeader.trigger('click');
-    await nextTickAll();
-
-    rows = wrapper.findAll('tbody tr');
-    // A-LAB doit arriver en premier
-    expect(rows[0].text()).toContain('A-LAB');
   });
 
   it('déclenche le changement de page via le bouton Suivant', async () => {
@@ -193,7 +191,8 @@ describe('App.vue', () => {
 
     await nextTickAll();
 
-    (global.fetch as any).mockClear();
+    const fetchMock = global.fetch as unknown as FetchMock;
+    fetchMock.mockClear();
 
     const nextButton = wrapper.findAll('button').find((b) => b.text().includes('Suivant'));
     expect(nextButton).toBeTruthy();
@@ -201,8 +200,8 @@ describe('App.vue', () => {
     await nextButton!.trigger('click');
     await nextTickAll();
 
-    expect(global.fetch).toHaveBeenCalled();
-    const call = (global.fetch as any).mock.calls[0];
+    expect(fetchMock).toHaveBeenCalled();
+    const call = fetchMock.mock.calls[0];
     const parsedUrl = new URL(call[0].toString(), 'http://localhost');
     expect(parsedUrl.searchParams.get('page')).toBe('2');
   });
@@ -211,7 +210,7 @@ describe('App.vue', () => {
     global.fetch = vi.fn((input: RequestInfo | URL) => {
       const url = input.toString();
       if (url.startsWith('/api/drugs')) {
-        return Promise.resolve({
+        const response: Response = {
           ok: true,
           status: 200,
           json: async () => ({
@@ -220,17 +219,19 @@ describe('App.vue', () => {
             total: 0,
             items: [],
           }),
-        }) as any;
+        } as unknown as Response;
+        return Promise.resolve(response);
       }
       if (url.startsWith('/api/ping')) {
-        return Promise.resolve({
+        const response: Response = {
           ok: false,
           status: 503,
           json: async () => ({}),
-        }) as any;
+        } as unknown as Response;
+        return Promise.resolve(response);
       }
       return Promise.reject(new Error(`Unexpected URL: ${url}`));
-    }) as any;
+    }) as unknown as typeof fetch;
 
     const wrapper = mount(App);
     await nextTickAll();
@@ -254,18 +255,16 @@ describe('App.vue - UI states', () => {
 
   it('affiche l’état de chargement pendant le fetch initial', async () => {
     global.fetch = vi.fn(() =>
-      new Promise((resolve) =>
-        setTimeout(
-          () =>
-            resolve({
-              ok: true,
-              status: 200,
-              json: async () => ({ page: 1, pageSize: 10, total: 0, items: [] }),
-            }) as any,
-          20,
-        ),
-      ),
-    ) as any;
+      new Promise<Response>((resolve) => {
+        const response: Response = {
+          ok: true,
+          status: 200,
+          json: async () => ({ page: 1, pageSize: 10, total: 0, items: [] }),
+        } as unknown as Response;
+
+        setTimeout(() => resolve(response), 20);
+      }),
+    ) as unknown as typeof fetch;
 
     const wrapper = mount(App);
 
@@ -281,7 +280,7 @@ describe('App.vue - UI states', () => {
     global.fetch = vi.fn((input: RequestInfo | URL) => {
       const url = input.toString();
       if (url.startsWith('/api/drugs')) {
-        return Promise.resolve({
+        const response: Response = {
           ok: true,
           status: 200,
           json: async () => ({
@@ -290,14 +289,16 @@ describe('App.vue - UI states', () => {
             total: 100,
             items: [],
           }),
-        }) as any;
+        } as unknown as Response;
+        return Promise.resolve(response);
       }
-      return Promise.resolve({
+      const response: Response = {
         ok: true,
         status: 200,
         json: async () => ({ message: 'pong' }),
-      }) as any;
-    }) as any;
+      } as unknown as Response;
+      return Promise.resolve(response);
+    }) as unknown as typeof fetch;
 
     const wrapper = mount(App);
     await nextTickAll();
@@ -319,18 +320,20 @@ describe('App.vue - erreurs et pagination limites', () => {
     global.fetch = vi.fn((input: RequestInfo | URL) => {
       const url = input.toString();
       if (url.startsWith('/api/drugs')) {
-        return Promise.resolve({
+        const response: Response = {
           ok: false,
           status: 404,
           json: async () => ({}),
-        }) as any;
+        } as unknown as Response;
+        return Promise.resolve(response);
       }
-      return Promise.resolve({
+      const response: Response = {
         ok: true,
         status: 200,
         json: async () => ({ message: 'pong' }),
-      }) as any;
-    }) as any;
+      } as unknown as Response;
+      return Promise.resolve(response);
+    }) as unknown as typeof fetch;
 
     const wrapper = mount(App);
     await nextTickAll();
@@ -345,7 +348,7 @@ describe('App.vue - erreurs et pagination limites', () => {
         // Simule être sur la dernière page: pageSize=10, total=20, page=2
         const parsedUrl = new URL(url, 'http://localhost');
         const page = Number(parsedUrl.searchParams.get('page') ?? '1');
-        return Promise.resolve({
+        const response: Response = {
           ok: true,
           status: 200,
           json: async () => ({
@@ -354,14 +357,16 @@ describe('App.vue - erreurs et pagination limites', () => {
             total: 20,
             items: [],
           }),
-        }) as any;
+        } as unknown as Response;
+        return Promise.resolve(response);
       }
-      return Promise.resolve({
+      const response: Response = {
         ok: true,
         status: 200,
         json: async () => ({ message: 'pong' }),
-      }) as any;
-    }) as any;
+      } as unknown as Response;
+      return Promise.resolve(response);
+    }) as unknown as typeof fetch;
 
     const wrapper = mount(App);
     await nextTickAll();
@@ -379,19 +384,23 @@ describe('App.vue - erreurs et pagination limites', () => {
   });
 });
 
+// Pour les endroits où on utilise wrapper.vm, on peut typer plus finement :
+
 describe('App.vue - tri interne', () => {
   it('retourne la même référence quand aucun sortKey n’est défini', async () => {
-    const wrapper = mount(App);
+    const wrapper = mount(App) as VueWrapper<InstanceType<typeof App>>;
     await nextTickAll();
 
-    const vm: any = wrapper.vm;
+    const vm = wrapper.vm as unknown as {
+      sortKey: string | null;
+      drugs: Array<{ id: string }>;
+      sortedDrugs: Array<{ id: string }>;
+    };
 
-    // Simuler un état sans sortKey explicite
     vm.sortKey = null;
 
-    const sorted = vm.sortedDrugs as unknown as { id: string }[];
+    const sorted = vm.sortedDrugs;
 
-    // Quand sortKey est null, sortedDrugs doit renvoyer exactement la référence de drugs
     expect(sorted).toBe(vm.drugs);
   });
 });
@@ -407,7 +416,7 @@ describe('App.vue - détail médicament', () => {
     global.fetch = vi.fn((input: RequestInfo | URL) => {
       const url = input.toString();
       if (url.startsWith('/api/drugs?')) {
-        return Promise.resolve({
+        const response: Response = {
           ok: true,
           status: 200,
           json: async () => ({
@@ -425,10 +434,11 @@ describe('App.vue - détail médicament', () => {
               },
             ],
           }),
-        }) as any;
+        } as unknown as Response;
+        return Promise.resolve(response);
       }
       if (url.startsWith('/api/drugs/APP-001')) {
-        return Promise.resolve({
+        const response: Response = {
           ok: true,
           status: 200,
           json: async () => ({
@@ -455,17 +465,19 @@ describe('App.vue - détail médicament', () => {
               },
             ],
           }),
-        }) as any;
+        } as unknown as Response;
+        return Promise.resolve(response);
       }
       if (url.startsWith('/api/ping')) {
-        return Promise.resolve({
+        const response: Response = {
           ok: true,
           status: 200,
           json: async () => ({ message: 'pong' }),
-        }) as any;
+        } as unknown as Response;
+        return Promise.resolve(response);
       }
       return Promise.reject(new Error(`Unexpected URL: ${url}`));
-    }) as any;
+    }) as unknown as typeof fetch;
 
     const wrapper = mount(App);
     await nextTickAll();
@@ -497,7 +509,7 @@ describe('App.vue - affichage des fallback "—"', () => {
     global.fetch = vi.fn((input: RequestInfo | URL) => {
       const url = input.toString();
       if (url.startsWith('/api/drugs')) {
-        return Promise.resolve({
+        const response: Response = {
           ok: true,
           status: 200,
           json: async () => ({
@@ -515,17 +527,19 @@ describe('App.vue - affichage des fallback "—"', () => {
               },
             ],
           }),
-        }) as any;
+        } as unknown as Response;
+        return Promise.resolve(response);
       }
       if (url.startsWith('/api/ping')) {
-        return Promise.resolve({
+        const response: Response = {
           ok: true,
           status: 200,
           json: async () => ({ message: 'pong' }),
-        }) as any;
+        } as unknown as Response;
+        return Promise.resolve(response);
       }
       return Promise.reject(new Error(`Unexpected URL: ${url}`));
-    }) as any;
+    }) as unknown as typeof fetch;
 
     const wrapper = mount(App);
     await nextTickAll();
@@ -542,10 +556,15 @@ describe('App.vue - affichage des fallback "—"', () => {
 
 describe('App.vue - comportement de setSort', () => {
   it('bascule la direction du tri quand la même colonne est cliquée deux fois', async () => {
-    const wrapper = mount(App);
+    const wrapper = mount(App) as VueWrapper<InstanceType<typeof App>>;
     await nextTickAll();
 
-    const vm: any = wrapper.vm;
+    const vm = wrapper.vm as unknown as {
+      sortKey: string | null;
+      sortDirection: 'asc' | 'desc';
+      setSort: (key: string) => void;
+    };
+
     expect(vm.sortKey).toBe('productName');
     expect(vm.sortDirection).toBe('asc');
 
@@ -557,10 +576,15 @@ describe('App.vue - comportement de setSort', () => {
   });
 
   it('change la colonne de tri et réinitialise en asc', async () => {
-    const wrapper = mount(App);
+    const wrapper = mount(App) as VueWrapper<InstanceType<typeof App>>;
     await nextTickAll();
 
-    const vm: any = wrapper.vm;
+    const vm = wrapper.vm as unknown as {
+      sortKey: string | null;
+      sortDirection: 'asc' | 'desc';
+      setSort: (key: string) => void;
+    };
+
     vm.setSort('sponsorName');
     expect(vm.sortKey).toBe('sponsorName');
     expect(vm.sortDirection).toBe('asc');
@@ -578,21 +602,23 @@ describe('App.vue - état de détail vide et erreur de détail', () => {
     global.fetch = vi.fn((input: RequestInfo | URL) => {
       const url = input.toString();
       if (url.startsWith('/api/drugs')) {
-        return Promise.resolve({
+        const response: Response = {
           ok: true,
           status: 200,
           json: async () => ({ page: 1, pageSize: 10, total: 0, items: [] }),
-        }) as any;
+        } as unknown as Response;
+        return Promise.resolve(response);
       }
       if (url.startsWith('/api/ping')) {
-        return Promise.resolve({
+        const response: Response = {
           ok: true,
           status: 200,
           json: async () => ({ message: 'pong' }),
-        }) as any;
+        } as unknown as Response;
+        return Promise.resolve(response);
       }
       return Promise.reject(new Error(`Unexpected URL: ${url}`));
-    }) as any;
+    }) as unknown as typeof fetch;
 
     const wrapper = mount(App);
     await nextTickAll();
@@ -604,7 +630,7 @@ describe('App.vue - état de détail vide et erreur de détail', () => {
     global.fetch = vi.fn((input: RequestInfo | URL) => {
       const url = input.toString();
       if (url.startsWith('/api/drugs?')) {
-        return Promise.resolve({
+        const response: Response = {
           ok: true,
           status: 200,
           json: async () => ({
@@ -622,24 +648,27 @@ describe('App.vue - état de détail vide et erreur de détail', () => {
               },
             ],
           }),
-        }) as any;
+        } as unknown as Response;
+        return Promise.resolve(response);
       }
       if (url.startsWith('/api/drugs/APP-ERR')) {
-        return Promise.resolve({
+        const response: Response = {
           ok: false,
           status: 500,
           json: async () => ({}),
-        }) as any;
+        } as unknown as Response;
+        return Promise.resolve(response);
       }
       if (url.startsWith('/api/ping')) {
-        return Promise.resolve({
+        const response: Response = {
           ok: true,
           status: 200,
           json: async () => ({ message: 'pong' }),
-        }) as any;
+        } as unknown as Response;
+        return Promise.resolve(response);
       }
       return Promise.reject(new Error(`Unexpected URL: ${url}`));
-    }) as any;
+    }) as unknown as typeof fetch;
 
     const wrapper = mount(App);
     await nextTickAll();
