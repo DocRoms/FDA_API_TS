@@ -1,0 +1,12 @@
+#!/bin/sh
+# Hook pre-push: vérifie la couverture avant de pousser
+
+echo "[pre-push] Exécution de make coverage..."
+if ! make coverage; then
+  echo "[pre-push] Échec de make coverage. Push annulé."
+  exit 1
+fi
+
+echo "[pre-push] Couverture OK, push autorisé."
+exit 0
+
